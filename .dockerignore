@@ -1,0 +1,106 @@
+# ==============================================================================
+# .dockerignore – Reduce Docker build context size and speed up builds
+# ==============================================================================
+
+# Git metadata and version control
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Docker files (no need to copy these into the build)
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Maven build artifacts (will be generated during build)
+**/target/
+**/.mvn/
+mvnw
+mvnw.cmd
+
+# IDE and editor files
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test and coverage reports
+**/test-results/
+**/coverage/
+**/.coverage
+**/htmlcov/
+
+# Logs
+**/*.log
+**/logs/
+
+# Temporary files
+**/tmp/
+**/temp/
+**/.tmp/
+
+# Node modules (frontend - will be installed during build)
+**/node_modules/
+**/dist/
+**/.next/
+**/.nuxt/
+**/out/
+
+# Documentation and markdown (not needed for runtime)
+*.md
+docs/
+README*
+CHANGELOG*
+LICENSE*
+CONTRIBUTING*
+
+# CI/CD configurations
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+azure-pipelines.yml
+Jenkinsfile
+
+# Environment files (use docker-compose env instead)
+.env*
+!.env.example
+
+# OS-specific files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Kubernetes configs (if any)
+k8s/
+kubernetes/
+*.yaml
+*.yml
+!**/src/**/*.yml
+!**/src/**/*.yaml
+
+# Helm charts
+charts/
+helm/
+
+# Database dumps
+*.sql
+*.dump
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Keep proto files as they're needed for gRPC code generation
+!proto/
+!**/proto/

@@ -1,0 +1,15 @@
+# gRPC client configuration for AI service
+grpc:
+  client:
+    ai-service:
+      address: ${AI_GRPC_ADDRESS:static://localhost:9095}
+      negotiation-type: plaintext
+      enable-keep-alive: true
+      keep-alive-time: 30s
+      keep-alive-timeout: 10s
+      keep-alive-without-calls: true
+
+ai:
+  grpc:
+    enabled: ${AI_GRPC_ENABLED:true}
+    timeout-seconds: ${AI_GRPC_TIMEOUT:30}

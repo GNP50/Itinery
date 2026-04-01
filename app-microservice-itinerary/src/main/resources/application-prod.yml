@@ -1,0 +1,73 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/itinerary_db}
+    username: ${SPRING_DATASOURCE_USERNAME:travel}
+    password: ${SPRING_DATASOURCE_PASSWORD:travel_secret}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1200000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+logging:
+  level:
+    root: WARN
+    com.travel: INFO
+    org.hibernate.SQL: WARN
+
+server:
+  port: 8085
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+itinerary:
+  queue:
+    max-concurrent: ${QUEUE_MAX_CONCURRENT:5}
+    max-queue-size: ${QUEUE_MAX_SIZE:200}
+    poll-interval-ms: ${QUEUE_POLL_INTERVAL:500}
+
+nominatim:
+  base-url: ${NOMINATIM_BASE_URL:https://nominatim.openstreetmap.org}
+  user-agent: TravelItineraryPlatform/1.0 (contact@example.com)
+
+osrm:
+  base-url: ${OSRM_BASE_URL:https://router.project-osrm.org}
+
+overpass:
+  base-url: ${OVERPASS_BASE_URL:https://overpass-api.de/api/interpreter}
+
+ollama:
+  base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+  model: ${OLLAMA_MODEL:llama3.1:8b}
+  timeout-seconds: ${OLLAMA_TIMEOUT:60}
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket: ${MINIO_BUCKET:travel-itinerary}

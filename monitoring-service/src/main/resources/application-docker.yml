@@ -1,0 +1,45 @@
+server:
+  port: 8084
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
+
+monitoring:
+  strategy: ${MONITORING_STRATEGY:console}
+  datadog:
+    api-key: ${DATADOG_API_KEY:}
+    site: datadoghq.com
+    enabled: false
+    host: localhost
+    port: 8126
+  telemetry:
+    enabled: true
+    include-headers: false
+
+grpc:
+  server:
+    port: 9090
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    doc-expansion: list
+
+logging:
+  level:
+    root: INFO
+    com.travel.monitoring: DEBUG
+    org.springframework.web: INFO
+    io.grpc: WARN

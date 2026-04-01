@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: travel-itinerary-saga-orchestrator
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/itinerary_db}
+    username: ${SPRING_DATASOURCE_USERNAME:travel}
+    password: ${SPRING_DATASOURCE_PASSWORD:travel_secret}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      # update: adds new columns/tables without dropping existing data
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      password: ${SPRING_REDIS_PASSWORD:}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      retries: 3
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+server:
+  port: ${SERVER_PORT:8082}
+
+# gRPC server configuration
+grpc:
+  server:
+    port: ${GRPC_SERVER_PORT:9096}
+
+# Saga orchestrator configuration
+saga:
+  max-concurrent: ${SAGA_MAX_CONCURRENT:5}
+  poll-interval-ms: ${SAGA_POLL_INTERVAL:5000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+logging:
+  level:
+    com.travel: INFO
+    org.springframework.kafka: WARN
+    org.hibernate.SQL: WARN

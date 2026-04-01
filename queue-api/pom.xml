@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ================================================================== -->
+    <!-- Parent                                                               -->
+    <!-- ================================================================== -->
+    <parent>
+        <groupId>com.travel</groupId>
+        <artifactId>travel-itinerary-platform</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!-- ================================================================== -->
+    <!-- Artifact                                                             -->
+    <!-- ================================================================== -->
+    <groupId>com.travel</groupId>
+    <artifactId>queue-api</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Queue API</name>
+    <description>
+        Queue domain API module: outbound ports for queue management operations.
+        This is a cross-cutting infrastructure concern used by multiple bounded contexts
+        (itinerary, geo, ai, saga orchestration).
+        Plain JAR – no Spring Boot repackage.
+    </description>
+
+    <!-- ================================================================== -->
+    <!-- Dependencies                                                         -->
+    <!-- ================================================================== -->
+    <dependencies>
+
+        <!-- Jackson – JSON serialisation of DTOs -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <!-- version managed by Spring Boot BOM -->
+        </dependency>
+
+        <!-- Lombok – boilerplate reduction -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+    </dependencies>
+
+    <!-- ================================================================== -->
+    <!-- Build                                                                -->
+    <!-- ================================================================== -->
+    <build>
+        <plugins>
+            <!-- Prevent Spring Boot repackage – this is a library module -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

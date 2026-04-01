@@ -1,0 +1,6 @@
+# gRPC client configuration for Saga service
+grpc:
+  client:
+    saga-service:
+      address: ${GRPC_CLIENT_SAGA_SERVICE_ADDRESS:static://localhost:9096}
+      negotiationType: ${GRPC_CLIENT_SAGA_SERVICE_NEGOTIATION_TYPE:plaintext}

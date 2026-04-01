@@ -1,0 +1,350 @@
+syntax = "proto3";
+
+// =============================================================================
+// geo-service.proto
+// gRPC service for geocoding, reverse-geocoding, routing, and POI search.
+// Implemented by the geo-api / geo-impl modules.
+// =============================================================================
+
+package com.travel.geo.v1;
+
+option java_package         = "com.travel.geo.grpc.v1";
+option java_outer_classname = "GeoServiceProto";
+option java_multiple_files  = true;
+
+import "google/protobuf/timestamp.proto";
+
+// =============================================================================
+// Service
+// =============================================================================
+
+service GeoService {
+
+    // Convert a free-form address string into geographic coordinates.
+    rpc Geocode(GeocodeRequest) returns (GeocodeResponse);
+
+    // Convert coordinates into a human-readable address.
+    rpc ReverseGeocode(ReverseGeocodeRequest) returns (ReverseGeocodeResponse);
+
+    // Calculate one or more routes between an ordered list of waypoints.
+    rpc Route(RouteRequest) returns (RouteResponse);
+
+    // Find points of interest near a given location.
+    rpc FindPoi(FindPoiRequest) returns (FindPoiResponse);
+
+    // Batch geocode multiple addresses in a single call.
+    rpc BatchGeocode(BatchGeocodeRequest) returns (BatchGeocodeResponse);
+
+    // Returns the distance matrix between multiple origins and destinations.
+    rpc DistanceMatrix(DistanceMatrixRequest) returns (DistanceMatrixResponse);
+}
+
+// =============================================================================
+// Shared types
+// =============================================================================
+
+// WGS-84 geographic coordinate pair.
+message LatLng {
+    double latitude  = 1;
+    double longitude = 2;
+}
+
+// Axis-aligned bounding box.
+message BoundingBox {
+    LatLng southwest = 1;
+    LatLng northeast = 2;
+}
+
+// GeoJSON-compatible geometry.
+message Geometry {
+    // Type: "Point", "LineString", "Polygon", "MultiPolygon", etc.
+    string type        = 1;
+    // Serialised GeoJSON coordinates array.
+    string coordinates = 2;
+}
+
+// Address component breakdown.
+message AddressComponents {
+    string street_number   = 1;
+    string street_name     = 2;
+    string neighbourhood   = 3;
+    string city            = 4;
+    string county          = 5;
+    string state           = 6;
+    string postal_code     = 7;
+    string country         = 8;
+    string country_code    = 9;  // ISO 3166-1 alpha-2
+}
+
+// A single geocoding result.
+message GeocodingResult {
+    string            place_id    = 1;
+    string            formatted   = 2;
+    LatLng            location    = 3;
+    AddressComponents components  = 4;
+    BoundingBox       viewport    = 5;
+
+    // Confidence score 0.0 – 1.0
+    float confidence = 6;
+
+    // Matched address type (e.g. "street_address", "locality", "poi").
+    string result_type = 7;
+}
+
+// Travel mode for routing and distance calculations.
+enum TravelMode {
+    TRAVEL_MODE_UNSPECIFIED = 0;
+    TRAVEL_MODE_DRIVING     = 1;
+    TRAVEL_MODE_WALKING     = 2;
+    TRAVEL_MODE_CYCLING     = 3;
+    TRAVEL_MODE_TRANSIT     = 4;
+}
+
+// Route optimisation objective.
+enum RouteOptimization {
+    ROUTE_OPTIMIZATION_UNSPECIFIED = 0;
+    ROUTE_OPTIMIZATION_FASTEST     = 1;
+    ROUTE_OPTIMIZATION_SHORTEST    = 2;
+    ROUTE_OPTIMIZATION_BALANCED    = 3;
+}
+
+// =============================================================================
+// Geocode
+// =============================================================================
+
+message GeocodeRequest {
+    // Free-form address query.
+    string address = 1;
+
+    // Optional: restrict results to this region.
+    string language    = 2;
+    string region_code = 3;     // ISO 3166-1 alpha-2
+
+    // Optional bounding box bias (results are biased toward this area).
+    BoundingBox bounds = 4;
+
+    // Maximum number of results to return (default 5, max 20).
+    int32 max_results = 5;
+}
+
+message GeocodeResponse {
+    repeated GeocodingResult results = 1;
+    string                   status  = 2;  // "OK" | "ZERO_RESULTS" | "REQUEST_DENIED"
+}
+
+// =============================================================================
+// ReverseGeocode
+// =============================================================================
+
+message ReverseGeocodeRequest {
+    LatLng location       = 1;
+    string language       = 2;
+    int32  max_results    = 3;
+
+    // Filter to specific result types (e.g. ["street_address", "route"]).
+    repeated string result_types = 4;
+}
+
+message ReverseGeocodeResponse {
+    repeated GeocodingResult results = 1;
+    string                   status  = 2;
+}
+
+// =============================================================================
+// Route
+// =============================================================================
+
+message RouteRequest {
+    // Ordered list of waypoints; at least origin and destination are required.
+    repeated Waypoint waypoints = 1;
+
+    TravelMode        travel_mode  = 2;
+    RouteOptimization optimize_for = 3;
+
+    // If true, return alternative routes in addition to the primary route.
+    bool alternatives = 4;
+
+    // Optional departure time for transit / traffic-aware routing.
+    google.protobuf.Timestamp departure_time = 5;
+
+    string language = 6;
+    string units    = 7;   // "metric" | "imperial"
+}
+
+message Waypoint {
+    oneof location_type {
+        LatLng coordinates = 1;
+        string address     = 2;
+        string place_id    = 3;
+    }
+
+    // Optional display label.
+    string label = 4;
+
+    // If true this waypoint is a via-point (does not split the leg).
+    bool via = 5;
+}
+
+message RouteResponse {
+    repeated Route routes = 1;
+    string         status = 2;
+}
+
+message Route {
+    // Ordered list of legs connecting consecutive waypoints.
+    repeated RouteLeg legs = 1;
+
+    // Total aggregated distance in metres.
+    int64 total_distance_meters = 2;
+
+    // Total aggregated duration in seconds.
+    int64 total_duration_seconds = 3;
+
+    // Encoded polyline (Google Encoded Polyline Algorithm).
+    string encoded_polyline = 4;
+
+    // Bounding box of the whole route.
+    BoundingBox bounds = 5;
+
+    // GeoJSON LineString of the full route geometry.
+    Geometry geometry = 6;
+
+    // Summary description (e.g. "Via A1").
+    string summary = 7;
+
+    // Warnings surfaced by the routing engine.
+    repeated string warnings = 8;
+}
+
+message RouteLeg {
+    LatLng start_location = 1;
+    LatLng end_location   = 2;
+
+    int64  distance_meters  = 3;
+    int64  duration_seconds = 4;
+
+    string start_address = 5;
+    string end_address   = 6;
+
+    repeated RouteStep steps = 7;
+}
+
+message RouteStep {
+    LatLng start_location = 1;
+    LatLng end_location   = 2;
+
+    int64  distance_meters  = 3;
+    int64  duration_seconds = 4;
+
+    // HTML-formatted instruction (for display).
+    string instruction    = 5;
+    string maneuver       = 6;   // e.g. "turn-left", "roundabout-left"
+    string encoded_polyline = 7;
+}
+
+// =============================================================================
+// FindPoi
+// =============================================================================
+
+message FindPoiRequest {
+    LatLng center          = 1;
+    int32  radius_meters   = 2;
+
+    // POI category filters (e.g. "restaurant", "hotel", "museum", "airport").
+    repeated string categories = 3;
+
+    // Free-form keyword search within POI names/descriptions.
+    string keyword         = 4;
+
+    // Minimum rating threshold 1.0 – 5.0.
+    float  min_rating      = 5;
+
+    bool   open_now        = 6;
+    int32  max_results     = 7;   // default 20, max 100
+    string language        = 8;
+
+    // Bounding box alternative to center + radius.
+    BoundingBox bounding_box = 9;
+
+    // Sort order.
+    string sort_by = 10;   // "distance" | "rating" | "popularity"
+}
+
+message FindPoiResponse {
+    repeated PointOfInterest pois   = 1;
+    string                   status = 2;
+}
+
+message PointOfInterest {
+    string place_id    = 1;
+    string name        = 2;
+
+    // Primary category.
+    string category    = 3;
+
+    // Sub-category tags.
+    repeated string tags = 4;
+
+    LatLng location    = 5;
+    string address     = 6;
+
+    float  rating      = 7;
+    int32  review_count = 8;
+
+    bool   open_now    = 9;
+
+    // Opening hours per day of week (ISO day 1=Mon).
+    map<int32, string> opening_hours = 10;
+
+    string phone_number  = 11;
+    string website       = 12;
+    string photo_url     = 13;
+
+    // Distance from the requested center in metres.
+    int32  distance_meters = 14;
+
+    map<string, string> attributes = 15;
+}
+
+// =============================================================================
+// BatchGeocode
+// =============================================================================
+
+message BatchGeocodeRequest {
+    repeated GeocodeRequest requests = 1;
+}
+
+message BatchGeocodeResponse {
+    // Ordered parallel to requests.
+    repeated GeocodeResponse responses = 1;
+}
+
+// =============================================================================
+// DistanceMatrix
+// =============================================================================
+
+message DistanceMatrixRequest {
+    repeated LatLng origins      = 1;
+    repeated LatLng destinations = 2;
+    TravelMode      travel_mode  = 3;
+
+    google.protobuf.Timestamp departure_time = 4;
+    string units   = 5;
+    string language = 6;
+}
+
+message DistanceMatrixResponse {
+    // Row i contains distances from origins[i] to all destinations.
+    repeated DistanceMatrixRow rows   = 1;
+    string                     status = 2;
+}
+
+message DistanceMatrixRow {
+    repeated DistanceMatrixElement elements = 1;
+}
+
+message DistanceMatrixElement {
+    int64  distance_meters  = 1;
+    int64  duration_seconds = 2;
+    string status           = 3;  // "OK" | "NOT_FOUND" | "ZERO_RESULTS"
+}

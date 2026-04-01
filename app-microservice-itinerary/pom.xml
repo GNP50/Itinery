@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.travel</groupId>
+        <artifactId>travel-itinerary-platform</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>app-microservice-itinerary</artifactId>
+    <packaging>jar</packaging>
+
+    <name>app-microservice-itinerary</name>
+    <description>Itinerary Microservice Application</description>
+
+    <dependencies>
+        <!-- Itinerary core business logic -->
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>itinerary-impl-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Itinerary inbound adapters -->
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>itinerary-impl-rest</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Itinerary outbound adapters -->
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>itinerary-impl-jpa</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>itinerary-impl-redis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>queue-impl-redis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>itinerary-impl-kafka</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>itinerary-impl-storage</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Cross-domain gRPC clients -->
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>ai-grpc-client</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>geo-grpc-client</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>user-grpc-client</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>event-messaging-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>config-client-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>geo-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>ai-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- gRPC client for calling ai-service -->
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-spring-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.travel.microservice.itinerary.ItineraryMicroserviceApplication</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

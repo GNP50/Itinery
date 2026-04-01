@@ -1,0 +1,161 @@
+syntax = "proto3";
+
+// =============================================================================
+// saga-service.proto
+// gRPC service definition for the Saga Orchestrator bounded context.
+// Managed by the saga-impl / event-saga-orchestrator modules.
+// =============================================================================
+
+package com.travel.saga.v1;
+
+option java_package         = "com.travel.saga.grpc.v1";
+option java_outer_classname = "SagaServiceProto";
+option java_multiple_files  = true;
+
+import "google/protobuf/timestamp.proto";
+
+// =============================================================================
+// Service
+// =============================================================================
+
+service SagaService {
+
+    // Retrieve a saga instance by its unique ID.
+    rpc GetSagaInstance(GetSagaInstanceRequest) returns (SagaInstanceResponse);
+
+    // Retrieve saga instance(s) by itinerary ID.
+    rpc GetSagaByItinerary(GetSagaByItineraryRequest) returns (GetSagaByItineraryResponse);
+
+    // List saga instances with optional filters.
+    rpc ListSagaInstances(ListSagaInstancesRequest) returns (ListSagaInstancesResponse);
+
+    // Retry a failed saga instance.
+    rpc RetrySaga(RetrySagaRequest) returns (RetrySagaResponse);
+
+    // Trigger compensation (rollback) for a saga instance.
+    rpc CompensateSaga(CompensateSagaRequest) returns (CompensateSagaResponse);
+
+    // Get the state transition history for a saga instance.
+    rpc GetSagaHistory(GetSagaHistoryRequest) returns (GetSagaHistoryResponse);
+}
+
+// =============================================================================
+// Enumerations
+// =============================================================================
+
+enum SagaState {
+    SAGA_STATE_UNSPECIFIED = 0;
+    SAGA_STATE_INITIAL = 1;
+    SAGA_STATE_GEOCODING = 2;
+    SAGA_STATE_ROUTING = 3;
+    SAGA_STATE_AI_ENRICHMENT = 4;
+    SAGA_STATE_POI_DISCOVERY = 5;
+    SAGA_STATE_COMPLETED = 6;
+    SAGA_STATE_FAILED = 7;
+    SAGA_STATE_COMPENSATING = 8;
+}
+
+enum SagaStepType {
+    SAGA_STEP_TYPE_UNSPECIFIED = 0;
+    SAGA_STEP_TYPE_GEOCODING = 1;
+    SAGA_STEP_TYPE_ROUTING = 2;
+    SAGA_STEP_TYPE_AI_ENRICHMENT = 3;
+    SAGA_STEP_TYPE_POI_DISCOVERY = 4;
+}
+
+// =============================================================================
+// Core domain messages
+// =============================================================================
+
+// Full saga instance representation
+message SagaInstanceResponse {
+    string                    id              = 1;   // UUID
+    string                    itinerary_id    = 2;   // UUID
+    SagaState                 current_state   = 3;
+    repeated SagaStepType     completed_steps = 4;
+    SagaStepType              failed_step     = 5;   // empty if no failure
+    string                    error_message   = 6;
+    int64                     version         = 7;   // optimistic locking version
+    int32                     retry_count     = 8;
+    int32                     max_retries     = 9;
+    string                    preferences     = 10;  // JSON blob
+    google.protobuf.Timestamp created_at      = 11;
+    google.protobuf.Timestamp updated_at      = 12;
+}
+
+// State transition history entry
+message SagaStateTransition {
+    string                    from_state = 1;
+    string                    to_state   = 2;
+    string                    event      = 3;
+    google.protobuf.Timestamp timestamp  = 4;
+}
+
+// =============================================================================
+// Request / Response messages
+// =============================================================================
+
+// ── GetSagaInstance ───────────────────────────────────────────────────────────
+
+message GetSagaInstanceRequest {
+    string saga_id = 1;  // UUID
+}
+
+// Response reuses SagaInstanceResponse
+
+// ── GetSagaByItinerary ───────────────────────────────────────────────────────
+
+message GetSagaByItineraryRequest {
+    string itinerary_id = 1;  // UUID
+}
+
+message GetSagaByItineraryResponse {
+    repeated SagaInstanceResponse saga_instances = 1;
+}
+
+// ── ListSagaInstances ────────────────────────────────────────────────────────
+
+message ListSagaInstancesRequest {
+    int32      offset          = 1;  // zero-based page offset
+    int32      limit           = 2;  // max rows to return (default 20)
+    SagaState  state_filter    = 3;  // optional: filter by state
+    string     itinerary_id    = 4;  // optional: filter by itinerary
+}
+
+message ListSagaInstancesResponse {
+    repeated SagaInstanceResponse saga_instances = 1;
+    int64                         total          = 2;  // total matching rows
+}
+
+// ── RetrySaga ────────────────────────────────────────────────────────────────
+
+message RetrySagaRequest {
+    string saga_id = 1;  // UUID
+}
+
+message RetrySagaResponse {
+    bool   success = 1;
+    string message = 2;
+}
+
+// ── CompensateSaga ───────────────────────────────────────────────────────────
+
+message CompensateSagaRequest {
+    string saga_id = 1;  // UUID
+}
+
+message CompensateSagaResponse {
+    bool   success = 1;
+    string message = 2;
+}
+
+// ── GetSagaHistory ───────────────────────────────────────────────────────────
+
+message GetSagaHistoryRequest {
+    string saga_id = 1;  // UUID
+}
+
+message GetSagaHistoryResponse {
+    string                        saga_id     = 1;
+    repeated SagaStateTransition  transitions = 2;
+}

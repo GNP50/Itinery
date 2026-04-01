@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: ai-microservice
+  profiles:
+    active: local
+
+server:
+  port: 8089
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+grpc:
+  server:
+    port: 9095
+
+ai:
+  ollama:
+    url: ${OLLAMA_CLOUD_URL:}
+    api-key: ${OLLAMA_API_KEY:}
+    model: llama3.1:8b
+    mock: ${MOCK_AI_CHAT:true}
+
+logging:
+  level:
+    com.travel.ai: DEBUG
+    net.devh.boot.grpc: DEBUG

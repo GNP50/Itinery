@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: file-manager
+  profiles:
+    active: default
+  jackson:
+    default-property-inclusion: non_null
+  mvc:
+    async:
+      request-timeout: 30s
+
+server:
+  port: 8083
+  shutdown: graceful
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 10
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket: ${MINIO_BUCKET:travel-itinerary}
+  connect-timeout: 5000
+  read-timeout: 30000
+
+file:
+  storage:
+    strategy: ${FILE_STORAGE_STRATEGY:s3}
+    local-base-dir: ${FILE_STORAGE_LOCAL_BASE_DIR:/tmp/file-storage}
+
+grpc:
+  server:
+    enabled: true
+    port: 9093
+    reflection-enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.travel.file: DEBUG
+    io.minio: INFO
+    org.apache.http: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    metrics:
+      enabled: true

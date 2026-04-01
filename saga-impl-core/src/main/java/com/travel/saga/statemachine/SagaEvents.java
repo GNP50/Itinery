@@ -1,0 +1,15 @@
+package com.travel.saga.statemachine;
+
+public enum SagaEvents {
+    START,
+    GEOCODING_COMPLETED,
+    GEOCODING_FAILED,
+    ROUTING_COMPLETED,
+    ROUTING_FAILED,
+    AI_COMPLETED,
+    AI_FAILED,
+    POI_COMPLETED,
+    POI_FAILED,
+    COMPENSATE,
+    COMPENSATION_COMPLETED
+}

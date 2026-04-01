@@ -1,0 +1,400 @@
+syntax = "proto3";
+
+// =============================================================================
+// ai-service.proto
+// gRPC service for AI-powered travel assistance backed by Ollama / llama3.1:8b.
+// Implemented by the ai-api module.
+// =============================================================================
+
+package com.travel.ai.v1;
+
+option java_package         = "com.travel.ai.grpc.v1";
+option java_outer_classname = "AiServiceProto";
+option java_multiple_files  = true;
+
+import "google/protobuf/timestamp.proto";
+
+// =============================================================================
+// Service
+// =============================================================================
+
+service AiService {
+
+    // Generate AI-powered travel activity / itinerary suggestions.
+    // Supports both single-response and streaming (token-by-token) modes.
+    rpc Suggest(SuggestRequest) returns (stream SuggestResponse);
+
+    // Multi-turn conversational travel assistant (full duplex streaming).
+    rpc Chat(stream ChatRequest) returns (stream ChatResponse);
+
+    // Optimise the ordering of itinerary steps to minimise travel time / cost.
+    rpc OptimizeRoute(OptimizeRouteRequest) returns (OptimizeRouteResponse);
+
+    // Summarise a complete itinerary into a brief natural-language description.
+    rpc SummarizeItinerary(SummarizeItineraryRequest) returns (SummarizeItineraryResponse);
+
+    // Translate itinerary content into the requested language.
+    rpc TranslateContent(TranslateContentRequest) returns (TranslateContentResponse);
+
+    // Estimate the sentiment / quality score of user-submitted trip feedback.
+    rpc AnalyzeFeedback(AnalyzeFeedbackRequest) returns (AnalyzeFeedbackResponse);
+}
+
+// =============================================================================
+// Shared types
+// =============================================================================
+
+// LLM generation parameters.
+message GenerationConfig {
+    // Sampling temperature 0.0 (deterministic) – 2.0 (creative).
+    float  temperature      = 1;
+
+    // Top-p nucleus sampling threshold.
+    float  top_p            = 2;
+
+    // Top-k sampling threshold.
+    int32  top_k            = 3;
+
+    // Maximum tokens to generate in a single response.
+    int32  max_tokens       = 4;
+
+    // Repetition penalty (1.0 = no penalty).
+    float  repeat_penalty   = 5;
+
+    // Random seed for reproducibility (0 = random).
+    int64  seed             = 6;
+
+    // Stop sequences – generation halts when one is encountered.
+    repeated string stop_sequences = 7;
+}
+
+// A single message in a conversation history.
+message ChatMessage {
+    // "system" | "user" | "assistant"
+    string role    = 1;
+    string content = 2;
+
+    google.protobuf.Timestamp timestamp = 3;
+}
+
+// Geographical context to bias AI suggestions.
+message GeoContext {
+    double latitude  = 1;
+    double longitude = 2;
+    string city      = 3;
+    string country   = 4;
+    string region    = 5;
+}
+
+// User preference profile passed to AI for personalisation.
+message TravelPreferences {
+    // Travel style tags (e.g. "adventure", "cultural", "luxury", "budget").
+    repeated string styles = 1;
+
+    // Dietary restrictions (e.g. "vegetarian", "gluten-free").
+    repeated string dietary_restrictions = 2;
+
+    // Activity intensity (1=low, 5=high).
+    int32  activity_level  = 3;
+
+    // Preferred transportation modes.
+    repeated string transport_modes = 4;
+
+    // Accessibility requirements.
+    repeated string accessibility_needs = 5;
+
+    // Languages the traveller speaks (BCP 47 tags).
+    repeated string languages = 6;
+
+    // Budget tier: "budget" | "mid-range" | "luxury".
+    string budget_tier = 7;
+}
+
+// =============================================================================
+// Suggest
+// =============================================================================
+
+message SuggestRequest {
+    // What the user wants suggestions for (free-form prompt).
+    string prompt = 1;
+
+    // Destination context.
+    GeoContext         geo_context  = 2;
+    TravelPreferences  preferences  = 3;
+
+    // Optional: suggest activities for a specific date window.
+    google.protobuf.Timestamp travel_start = 4;
+    google.protobuf.Timestamp travel_end   = 5;
+
+    // Number of distinct suggestions to generate.
+    int32 num_suggestions = 6;
+
+    // Category filter (e.g. "restaurant", "museum", "outdoor").
+    repeated string categories = 7;
+
+    // If true, stream tokens as they are generated.
+    bool stream = 8;
+
+    GenerationConfig generation_config = 9;
+
+    // LLM model override (leave empty to use the platform default).
+    string model = 10;
+}
+
+// Streamed – token-by-token when stream=true, single message when stream=false.
+message SuggestResponse {
+    // Current token chunk (may be a partial word during streaming).
+    string token = 1;
+
+    // When streaming is complete, this is set to true and full_text is populated.
+    bool   done      = 2;
+    string full_text = 3;
+
+    // Structured suggestions parsed from the full_text (available when done=true).
+    repeated TravelSuggestion suggestions = 4;
+
+    // Token usage statistics (available when done=true).
+    TokenUsage usage = 5;
+}
+
+message TravelSuggestion {
+    string          title       = 1;
+    string          description = 2;
+    string          category    = 3;
+    repeated string tags        = 4;
+    float           relevance   = 5;  // 0.0 – 1.0
+
+    GeoContext location       = 6;
+    string     estimated_duration  = 7;  // human-readable (e.g. "2 hours")
+    string     estimated_cost      = 8;  // human-readable (e.g. "~€20 per person")
+    string     best_time_to_visit  = 9;
+
+    repeated string practical_tips = 10;
+    map<string, string> metadata   = 11;
+}
+
+message TokenUsage {
+    int32 prompt_tokens     = 1;
+    int32 completion_tokens = 2;
+    int32 total_tokens      = 3;
+}
+
+// =============================================================================
+// Chat
+// =============================================================================
+
+message ChatRequest {
+    // Session identifier for context continuity across bidirectional stream.
+    string session_id = 1;
+
+    // The new user message.
+    ChatMessage message = 2;
+
+    // Conversation history (the client may send a compact version).
+    repeated ChatMessage history = 3;
+
+    TravelPreferences  preferences = 4;
+    GeoContext         geo_context = 5;
+    GenerationConfig   generation_config = 6;
+
+    // If true, the server will stream individual tokens back.
+    bool stream = 7;
+
+    string model = 8;
+}
+
+message ChatResponse {
+    string session_id = 1;
+
+    // Partial token (streaming) or complete message (non-streaming).
+    string token       = 2;
+    bool   done        = 3;
+
+    // Full assistant message (populated when done=true).
+    ChatMessage message = 4;
+
+    TokenUsage usage = 5;
+
+    // Detected intent (e.g. "find_restaurant", "plan_day", "get_directions").
+    string detected_intent = 6;
+
+    // Structured entities extracted from the assistant response.
+    map<string, string> extracted_entities = 7;
+
+    // Inline suggestions the UI may render as quick-reply chips.
+    repeated string suggested_follow_ups = 8;
+}
+
+// =============================================================================
+// OptimizeRoute
+// =============================================================================
+
+message OptimizeRouteRequest {
+    string itinerary_id = 1;
+
+    // Ordered list of steps to optimise.
+    repeated RouteStep steps = 2;
+
+    // Optimisation objective.
+    string objective = 3;   // "minimize_travel_time" | "minimize_cost" | "balanced"
+
+    // Travel mode.
+    string travel_mode = 4;  // "driving" | "walking" | "cycling" | "transit"
+
+    // Hard constraints.
+    google.protobuf.Timestamp day_start_time = 5;
+    google.protobuf.Timestamp day_end_time   = 6;
+
+    // If true, the start and end location must remain fixed.
+    bool fix_first_step = 7;
+    bool fix_last_step  = 8;
+
+    // Maximum walking distance between any two consecutive steps (metres).
+    int32 max_walking_distance_meters = 9;
+
+    TravelPreferences preferences = 10;
+
+    GenerationConfig generation_config = 11;
+    string           model             = 12;
+}
+
+message RouteStep {
+    string step_id   = 1;
+    string title     = 2;
+    string category  = 3;
+
+    double latitude  = 4;
+    double longitude = 5;
+
+    // Minimum visit duration in minutes.
+    int32  min_duration_minutes = 6;
+
+    // Time window constraint – step must start between these times.
+    google.protobuf.Timestamp earliest_start = 7;
+    google.protobuf.Timestamp latest_start   = 8;
+
+    // Priority 1 (must-do) – 5 (nice-to-have), used when steps must be dropped.
+    int32 priority = 9;
+
+    map<string, string> metadata = 10;
+}
+
+message OptimizeRouteResponse {
+    // Re-ordered list of step identifiers in the optimal sequence.
+    repeated string optimized_step_ids = 1;
+
+    // Step-by-step schedule.
+    repeated OptimizedStep schedule = 2;
+
+    // Aggregate metrics.
+    int64  total_travel_time_seconds = 3;
+    int64  total_distance_meters     = 4;
+    string estimated_total_cost      = 5;
+
+    // Natural-language explanation of the optimisation rationale.
+    string explanation = 6;
+
+    // Steps that had to be dropped to meet constraints (if any).
+    repeated string dropped_step_ids = 7;
+
+    TokenUsage usage = 8;
+}
+
+message OptimizedStep {
+    string step_id = 1;
+    int32  sequence = 2;
+
+    google.protobuf.Timestamp suggested_start = 3;
+    google.protobuf.Timestamp suggested_end   = 4;
+
+    // Travel info from the previous step to this one.
+    int64  travel_time_seconds = 5;
+    int64  travel_distance_meters = 6;
+    string travel_mode         = 7;
+}
+
+// =============================================================================
+// SummarizeItinerary
+// =============================================================================
+
+message SummarizeItineraryRequest {
+    string itinerary_id = 1;
+
+    // Serialised itinerary JSON to avoid a DB round-trip.
+    string itinerary_json = 2;
+
+    // Output language (BCP 47, e.g. "en", "it", "fr").
+    string language = 3;
+
+    // Summary length: "brief" | "standard" | "detailed".
+    string length = 4;
+
+    GenerationConfig generation_config = 5;
+    string           model             = 6;
+}
+
+message SummarizeItineraryResponse {
+    string     summary    = 1;
+    string     highlights = 2;
+    TokenUsage usage      = 3;
+}
+
+// =============================================================================
+// TranslateContent
+// =============================================================================
+
+message TranslateContentRequest {
+    // Source text to translate.
+    string content = 1;
+
+    // BCP 47 source language (leave empty for auto-detect).
+    string source_language = 2;
+
+    // BCP 47 target language.
+    string target_language = 3;
+
+    // Preserve proper nouns (place names, brand names).
+    bool preserve_proper_nouns = 4;
+
+    GenerationConfig generation_config = 5;
+    string           model             = 6;
+}
+
+message TranslateContentResponse {
+    string translated_content  = 1;
+    string detected_source_language = 2;
+    float  confidence          = 3;
+    TokenUsage usage           = 4;
+}
+
+// =============================================================================
+// AnalyzeFeedback
+// =============================================================================
+
+message AnalyzeFeedbackRequest {
+    string feedback_text = 1;
+    string itinerary_id  = 2;
+    string language      = 3;
+
+    GenerationConfig generation_config = 4;
+    string           model             = 5;
+}
+
+message AnalyzeFeedbackResponse {
+    // Overall sentiment: "positive" | "neutral" | "negative" | "mixed".
+    string sentiment = 1;
+
+    // Sentiment score −1.0 (very negative) to +1.0 (very positive).
+    float  sentiment_score = 2;
+
+    // Aspect-level sentiment (e.g. {"accommodation": "positive", "transport": "negative"}).
+    map<string, string> aspect_sentiments = 3;
+
+    // Actionable improvement suggestions extracted from the feedback.
+    repeated string improvement_suggestions = 4;
+
+    // Detected topics / themes.
+    repeated string topics = 5;
+
+    TokenUsage usage = 6;
+}

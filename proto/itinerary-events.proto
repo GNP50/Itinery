@@ -1,0 +1,250 @@
+syntax = "proto3";
+
+// =============================================================================
+// itinerary-events.proto
+// Domain event messages published to Apache Kafka by the itinerary-impl
+// module and consumed by the event-saga-orchestrator and other services.
+//
+// Topic naming convention:
+//   com.travel.itinerary.events.v1
+// =============================================================================
+
+package com.travel.itinerary.events.v1;
+
+option java_package         = "com.travel.itinerary.events.v1";
+option java_outer_classname = "ItineraryEventsProto";
+option java_multiple_files  = true;
+
+import "google/protobuf/timestamp.proto";
+
+// =============================================================================
+// Shared enumerations
+// =============================================================================
+
+enum ItineraryStatus {
+    ITINERARY_STATUS_UNSPECIFIED  = 0;
+    ITINERARY_STATUS_DRAFT        = 1;
+    ITINERARY_STATUS_PLANNING     = 2;
+    ITINERARY_STATUS_CONFIRMED    = 3;
+    ITINERARY_STATUS_IN_PROGRESS  = 4;
+    ITINERARY_STATUS_COMPLETED    = 5;
+    ITINERARY_STATUS_CANCELLED    = 6;
+    ITINERARY_STATUS_FAILED       = 7;
+}
+
+enum StepType {
+    STEP_TYPE_UNSPECIFIED   = 0;
+    STEP_TYPE_FLIGHT        = 1;
+    STEP_TYPE_ACCOMMODATION = 2;
+    STEP_TYPE_ACTIVITY      = 3;
+    STEP_TYPE_RESTAURANT    = 4;
+    STEP_TYPE_TRANSPORT     = 5;
+    STEP_TYPE_FREE_TIME     = 6;
+    STEP_TYPE_CHECKPOINT    = 7;
+}
+
+enum StepStatus {
+    STEP_STATUS_UNSPECIFIED = 0;
+    STEP_STATUS_PENDING     = 1;
+    STEP_STATUS_PROCESSING  = 2;
+    STEP_STATUS_COMPLETED   = 3;
+    STEP_STATUS_FAILED      = 4;
+    STEP_STATUS_SKIPPED     = 5;
+}
+
+// =============================================================================
+// Shared value objects
+// =============================================================================
+
+// Compact geographic coordinate embedded in event messages.
+message GeoCoordinate {
+    double latitude  = 1;
+    double longitude = 2;
+    double altitude  = 3;  // metres above sea level (optional)
+}
+
+// Money amount with ISO 4217 currency code.
+message Money {
+    int64  amount_minor = 1;  // amount in the smallest currency unit (e.g. cents)
+    string currency     = 2;  // ISO 4217 code (e.g. "EUR", "USD")
+}
+
+// Minimal step snapshot embedded in itinerary-level events.
+message StepSummary {
+    string    step_id     = 1;
+    int32     sequence    = 2;
+    string    title       = 3;
+    StepType  step_type   = 4;
+    StepStatus status     = 5;
+
+    google.protobuf.Timestamp scheduled_start = 6;
+    google.protobuf.Timestamp scheduled_end   = 7;
+}
+
+// Common event envelope metadata.
+message EventMetadata {
+    // Unique event identifier (UUID v4).
+    string event_id = 1;
+
+    // Correlation ID linking all events within the same logical operation.
+    string correlation_id = 2;
+
+    // Causation ID – the event_id of the event that triggered this one.
+    string causation_id = 3;
+
+    // Service / component that emitted this event.
+    string source_service = 4;
+
+    // Schema version (semver string, e.g. "1.0.0").
+    string schema_version = 5;
+
+    // Wall-clock time when the event was produced.
+    google.protobuf.Timestamp occurred_at = 6;
+}
+
+// =============================================================================
+// ItineraryCreatedEvent
+// Published when a new itinerary is successfully persisted.
+// =============================================================================
+
+message ItineraryCreatedEvent {
+    EventMetadata metadata     = 1;
+
+    // Itinerary aggregate root identifier (UUID).
+    string itinerary_id        = 2;
+
+    // Human-readable title.
+    string title               = 3;
+
+    // User who created the itinerary.
+    string owner_user_id       = 4;
+
+    // ISO 3166-1 alpha-2 destination country.
+    string destination_country = 5;
+
+    // Primary destination city.
+    string destination_city    = 6;
+
+    // Planned travel window.
+    google.protobuf.Timestamp planned_start_date = 7;
+    google.protobuf.Timestamp planned_end_date   = 8;
+
+    // Number of travellers.
+    int32  traveller_count     = 9;
+
+    // Estimated total budget.
+    Money  estimated_budget    = 10;
+
+    // Tags / labels applied at creation.
+    repeated string tags       = 11;
+
+    // Initial status (always DRAFT on creation).
+    ItineraryStatus status     = 12;
+
+    // Ordered summaries of steps provided at creation time.
+    repeated StepSummary initial_steps = 13;
+}
+
+// =============================================================================
+// ItineraryCompletedEvent
+// Published when all steps of an itinerary reach COMPLETED status.
+// =============================================================================
+
+message ItineraryCompletedEvent {
+    EventMetadata metadata     = 1;
+    string        itinerary_id = 2;
+    string        title        = 3;
+    string        owner_user_id = 4;
+
+    google.protobuf.Timestamp actual_start_date = 5;
+    google.protobuf.Timestamp actual_end_date   = 6;
+
+    // Actual total cost accumulated from all steps.
+    Money actual_total_cost = 7;
+
+    // Number of steps completed vs. total.
+    int32 completed_steps  = 8;
+    int32 total_steps      = 9;
+
+    // Ordered summaries of all steps at completion.
+    repeated StepSummary steps = 10;
+
+    // Optional user rating (1–5) if submitted at completion.
+    float user_rating      = 11;
+    string user_feedback   = 12;
+}
+
+// =============================================================================
+// ItineraryFailedEvent
+// Published when an itinerary transitions to FAILED or CANCELLED status.
+// =============================================================================
+
+message ItineraryFailedEvent {
+    EventMetadata   metadata      = 1;
+    string          itinerary_id  = 2;
+    string          title         = 3;
+    string          owner_user_id = 4;
+
+    ItineraryStatus final_status  = 5;
+
+    // Structured error code (e.g. "PAYMENT_FAILED", "STEP_VALIDATION_ERROR").
+    string error_code    = 6;
+
+    // Human-readable description of the failure reason.
+    string error_message = 7;
+
+    // Identifier of the step that triggered the failure (if applicable).
+    string failed_step_id = 8;
+
+    // Indicates whether a compensating transaction (SAGA rollback) was triggered.
+    bool compensation_triggered = 9;
+
+    // Snapshot of step statuses at the time of failure.
+    repeated StepSummary steps = 10;
+}
+
+// =============================================================================
+// StepProcessedEvent
+// Published when an individual itinerary step transitions to COMPLETED,
+// FAILED, or SKIPPED status.
+// =============================================================================
+
+message StepProcessedEvent {
+    EventMetadata metadata     = 1;
+
+    string itinerary_id        = 2;
+    string step_id             = 3;
+    int32  step_sequence       = 4;
+    string title               = 5;
+    StepType  step_type        = 6;
+    StepStatus step_status     = 7;
+
+    // Previous status before this transition.
+    StepStatus previous_status = 8;
+
+    // Geo-location associated with the step (if applicable).
+    GeoCoordinate location     = 9;
+    string location_name       = 10;
+
+    // Scheduled vs. actual timing.
+    google.protobuf.Timestamp scheduled_start = 11;
+    google.protobuf.Timestamp scheduled_end   = 12;
+    google.protobuf.Timestamp actual_start    = 13;
+    google.protobuf.Timestamp actual_end      = 14;
+
+    // Variance in minutes (positive = late, negative = early).
+    int32 delay_minutes        = 15;
+
+    // Actual cost for this step.
+    Money actual_cost          = 16;
+
+    // Error details (populated only when step_status is FAILED).
+    string error_code          = 17;
+    string error_message       = 18;
+
+    // Arbitrary step-type-specific details serialised as JSON.
+    string step_details_json   = 19;
+
+    // Processing duration in milliseconds.
+    int64  processing_duration_ms = 20;
+}

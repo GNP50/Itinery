@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ================================================================== -->
+    <!-- Parent                                                               -->
+    <!-- ================================================================== -->
+    <parent>
+        <groupId>com.travel</groupId>
+        <artifactId>travel-itinerary-platform</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!-- ================================================================== -->
+    <!-- Artifact                                                             -->
+    <!-- ================================================================== -->
+    <groupId>com.travel</groupId>
+    <artifactId>user-impl</artifactId>
+    <packaging>jar</packaging>
+
+    <name>User Implementation</name>
+    <description>
+        Domain implementation module for the User bounded context.
+        Contains JPA entity, Spring Data repository, application service,
+        and a gRPC server adapter exposing UserService.
+    </description>
+
+    <!-- ================================================================== -->
+    <!-- Dependencies                                                         -->
+    <!-- ================================================================== -->
+    <dependencies>
+
+        <!-- ── Internal modules ──────────────────────────────────────── -->
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>user-api</artifactId>
+        </dependency>
+
+        <!-- ── Spring Boot Starters ──────────────────────────────────── -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- ── PostgreSQL driver ─────────────────────────────────────── -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- ── gRPC Spring Boot Starter (server + client) ────────────── -->
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- ── Protobuf ──────────────────────────────────────────────── -->
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java-util</artifactId>
+        </dependency>
+
+        <!-- ── gRPC core ─────────────────────────────────────────────── -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-protobuf</artifactId>
+        </dependency>
+
+        <!-- ── Jakarta Annotations (for generated code) ──────────────── -->
+        <dependency>
+            <groupId>jakarta.annotation</groupId>
+            <artifactId>jakarta.annotation-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+            <version>1.3.2</version>
+        </dependency>
+
+    </dependencies>
+
+    <!-- ================================================================== -->
+    <!-- Build                                                                -->
+    <!-- ================================================================== -->
+    <build>
+        <plugins>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+
+            <!-- Compile .proto → Java stubs -->
+            <plugin>
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>

@@ -1,0 +1,348 @@
+version: "3.9"
+
+# ==============================================================================
+# Travel Itinerary Platform – Docker Compose (Development Stack)
+# ==============================================================================
+#
+# This is the development environment compose file with all supporting services
+# and the monolith application.
+#
+# Services
+# ────────
+#   postgres     – PostGIS-enabled PostgreSQL 16 (itinerary_db)
+#   redis        – Redis 7 (caching, pub/sub)
+#   kafka        – Apache Kafka 3.7 in KRaft mode (no ZooKeeper)
+#   kafka-ui     – Provectus Kafka UI
+#   minio        – S3-compatible object storage
+#   backend      – Spring Boot monolith application
+#                  Includes: itinerary, auth, admin endpoints (GET /api/v1/admin/*)
+#                  User domain is embedded — no separate user-service needed in monolith mode.
+#
+# AI / Ollama
+# ───────────
+#   Set OLLAMA_CLOUD_URL to point to a remote Ollama Cloud instance.
+#   When unset, MOCK_AI_CHAT=true activates the built-in mock AI responses.
+#
+# Quick start:  docker compose up -d
+# ==============================================================================
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+networks:
+  travel-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  kafka-data:
+  minio-data:
+
+services:
+
+  # ── PostgreSQL / PostGIS ────────────────────────────────────────────────────
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: travel-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: travel
+      POSTGRES_PASSWORD: travel_secret
+      POSTGRES_DB: itinerary_db          # primary database; others created via init script
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql:ro
+      - ./docker/postgres/02-init-itinerary-schema.sql:/docker-entrypoint-initdb.d/02-init-itinerary-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travel -d itinerary_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    networks:
+      - travel-net
+    logging: *default-logging
+
+  # ── Redis 7 ────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: travel-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass redis_secret
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfilename appendonly.aof
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_secret", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+    networks:
+      - travel-net
+    logging: *default-logging
+
+  # ── Apache Kafka 3.7 (KRaft mode – no ZooKeeper) ───────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: travel-kafka
+    restart: unless-stopped
+    environment:
+      # KRaft settings
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
+      # Listeners
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # Broker settings
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168          # 7 days
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824     # 1 GB
+      KAFKA_NUM_PARTITIONS: 3
+
+      # JVM heap
+      KAFKA_HEAP_OPTS: "-Xmx400m -Xms200m"
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 640M
+    networks:
+      - travel-net
+    logging: *default-logging
+
+  # ── Kafka topic initialiser ────────────────────────────────────────────────
+  # Creates all required topics with 3 partitions on first boot.
+  # Existing topics are skipped (--if-not-exists). Exits after setup.
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: travel-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        echo "Creating Kafka topics..."
+        for topic in \
+          itinerary.created \
+          itinerary.completed \
+          itinerary.failed \
+          itinerary.step.processed \
+          geo.worker.request geo.completed geo.failed \
+          route.worker.request route.completed route.failed \
+          ai.worker.request ai.completed ai.failed \
+          poi.worker.request poi.completed poi.failed \
+          dlq.itinerary-events; do
+          kafka-topics --bootstrap-server kafka:9092 \
+            --create --if-not-exists --topic "$$topic" \
+            --partitions 3 --replication-factor 1
+          echo "  ✓ $$topic"
+        done
+        echo "All topics created."
+    networks:
+      - travel-net
+
+  # ── Kafka UI ───────────────────────────────────────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: travel-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: travel-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_READONLY: "false"
+      SERVER_PORT: 8090
+    ports:
+      - "8090:8090"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - travel-net
+    logging: *default-logging
+
+  # ── MinIO (S3-compatible object storage) ───────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: travel-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minio_secret_key
+      MINIO_SITE_NAME: travel-local
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - travel-net
+    logging: *default-logging
+
+  # ── Spring Boot Backend ────────────────────────────────────────────────────
+  backend:
+    image: com.travel/app-monolith:1.0.0-SNAPSHOT
+    container_name: travel-backend
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_MODULE: app-monolith
+        SKIP_TESTS: "true"
+      cache_from:
+        - com.travel/app-monolith:1.0.0-SNAPSHOT
+      # BuildKit inline cache for better layer reuse
+      x-bake:
+        cache-from: type=registry,ref=com.travel/app-monolith:buildcache
+        cache-to: type=registry,ref=com.travel/app-monolith:buildcache,mode=max
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      # Spring profiles
+      SPRING_PROFILES_ACTIVE: docker
+
+      # Database
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/itinerary_db
+      SPRING_DATASOURCE_USERNAME: travel
+      SPRING_DATASOURCE_PASSWORD: travel_secret
+
+      # Redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: redis_secret
+
+      # Kafka
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+      # MinIO / S3
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minio_secret_key
+      MINIO_BUCKET_ITINERARIES: itinerary-assets
+
+      # Ollama / AI
+      # Set OLLAMA_CLOUD_URL to a remote Ollama endpoint to use real AI.
+      # Leave empty to use the built-in mock responses (MOCK_AI_CHAT=true).
+      OLLAMA_CLOUD_URL: ${OLLAMA_CLOUD_URL:-}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      MOCK_AI_CHAT: "true"
+
+      # JVM options - use memory percentage for container-aware sizing
+      JAVA_OPTS: >-
+        -XX:+UseZGC
+        -XX:+ZGenerational
+        -XX:MaxRAMPercentage=75.0
+        -XX:InitialRAMPercentage=50.0
+        -XX:+HeapDumpOnOutOfMemoryError
+        -XX:HeapDumpPath=/app/logs/heap-dump.hprof
+        -Djava.security.egd=file:/dev/./urandom
+    ports:
+      - "8080:8080"   # HTTP API
+      - "9090:9090"   # gRPC
+      - "8081:8081"   # Actuator / management
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    networks:
+      - travel-net
+    logging: *default-logging
+
+  # ── React / Vite Frontend ──────────────────────────────────────────────────
+  frontend:
+    image: node:20-alpine
+    container_name: travel-frontend
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "yarn install --frozen-lockfile && yarn dev --host 0.0.0.0 --port 3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      VITE_API_URL: http://localhost:8080
+      VITE_WS_URL: ws://localhost:8080/ws
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app:delegated
+      - /app/node_modules
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - travel-net
+    logging: *default-logging

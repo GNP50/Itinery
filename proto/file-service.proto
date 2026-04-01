@@ -1,0 +1,247 @@
+syntax = "proto3";
+
+// =============================================================================
+// file-service.proto
+// gRPC service definition for file upload, download, and management.
+// Backed by MinIO (S3-compatible object storage) via the file-manager module.
+// =============================================================================
+
+package com.travel.file.v1;
+
+option java_package         = "com.travel.file.grpc.v1";
+option java_outer_classname = "FileServiceProto";
+option java_multiple_files  = true;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// =============================================================================
+// Service
+// =============================================================================
+
+service FileService {
+
+    // Upload a file using client-side streaming.
+    // The first message MUST contain FileUploadRequest.metadata;
+    // subsequent messages carry chunks in FileUploadRequest.chunk_data.
+    rpc UploadFile(stream FileUploadRequest) returns (FileUploadResponse);
+
+    // Download a file as a server-side stream of binary chunks.
+    rpc DownloadFile(DownloadFileRequest) returns (stream DownloadFileResponse);
+
+    // Retrieve metadata for a stored file without downloading content.
+    rpc GetFileMetadata(GetFileMetadataRequest) returns (FileMetadata);
+
+    // List files in a bucket / folder with optional prefix filter.
+    rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+
+    // Delete a file permanently.
+    rpc DeleteFile(DeleteFileRequest) returns (google.protobuf.Empty);
+
+    // Generate a time-limited pre-signed URL for direct browser access.
+    rpc GeneratePresignedUrl(GeneratePresignedUrlRequest) returns (GeneratePresignedUrlResponse);
+
+    // Copy a file within the same bucket or to a different bucket.
+    rpc CopyFile(CopyFileRequest) returns (FileMetadata);
+
+    // Move (rename) a file within the same bucket.
+    rpc MoveFile(MoveFileRequest) returns (FileMetadata);
+}
+
+// =============================================================================
+// Enumerations
+// =============================================================================
+
+enum FileAccessLevel {
+    FILE_ACCESS_LEVEL_UNSPECIFIED = 0;
+    FILE_ACCESS_LEVEL_PRIVATE     = 1;   // only owner can access
+    FILE_ACCESS_LEVEL_INTERNAL    = 2;   // authenticated users within the platform
+    FILE_ACCESS_LEVEL_PUBLIC      = 3;   // public read
+}
+
+enum PresignedUrlOperation {
+    PRESIGNED_URL_OPERATION_UNSPECIFIED = 0;
+    PRESIGNED_URL_OPERATION_GET         = 1;
+    PRESIGNED_URL_OPERATION_PUT         = 2;
+}
+
+// =============================================================================
+// Core message types
+// =============================================================================
+
+message FileMetadata {
+    // Storage object key (bucket-relative path, e.g. "itineraries/2024/cover.jpg").
+    string object_key    = 1;
+
+    // Target bucket name.
+    string bucket        = 2;
+
+    // Original filename provided by the uploader.
+    string file_name     = 3;
+
+    // MIME content type (e.g. "image/jpeg", "application/pdf").
+    string content_type  = 4;
+
+    // File size in bytes.
+    int64  size_bytes    = 5;
+
+    // MD5 or SHA-256 checksum of the stored object.
+    string checksum      = 6;
+    string checksum_algo = 7;  // "md5" | "sha256"
+
+    // ETag returned by MinIO / S3.
+    string etag          = 8;
+
+    // Access level controlling who may retrieve the file.
+    FileAccessLevel access_level = 9;
+
+    // Arbitrary key-value tags (e.g. "itinerary-id", "step-id", "uploader").
+    map<string, string> tags = 10;
+
+    google.protobuf.Timestamp created_at  = 11;
+    google.protobuf.Timestamp updated_at  = 12;
+}
+
+// =============================================================================
+// UploadFile (client-streaming)
+// =============================================================================
+
+// First message: fill metadata; leave chunk_data empty.
+// Subsequent messages: fill chunk_data (up to 1 MiB per message recommended);
+// leave metadata empty.
+message FileUploadRequest {
+    oneof payload {
+        UploadMetadata metadata   = 1;
+        bytes          chunk_data = 2;
+    }
+}
+
+message UploadMetadata {
+    // Desired object key (relative path inside the bucket).
+    // If empty the server generates one based on UUID.
+    string bucket        = 1;
+    string object_key    = 2;
+    string file_name     = 3;
+    string content_type  = 4;
+
+    // Total file size in bytes (optional; used for multipart upload planning).
+    int64  total_size_bytes = 5;
+
+    FileAccessLevel     access_level = 6;
+    map<string, string> tags         = 7;
+}
+
+message FileUploadResponse {
+    FileMetadata metadata = 1;
+
+    // Pre-signed URL valid for 15 minutes to confirm the upload or download.
+    string access_url = 2;
+}
+
+// =============================================================================
+// DownloadFile (server-streaming)
+// =============================================================================
+
+message DownloadFileRequest {
+    string bucket     = 1;
+    string object_key = 2;
+
+    // Optional byte range (inclusive); omit both for the full object.
+    int64 range_start = 3;
+    int64 range_end   = 4;
+}
+
+// First response message will have metadata populated.
+// Subsequent messages carry chunk_data; metadata is empty.
+message DownloadFileResponse {
+    oneof payload {
+        FileMetadata metadata   = 1;
+        bytes        chunk_data = 2;
+    }
+}
+
+// =============================================================================
+// GetFileMetadata
+// =============================================================================
+
+message GetFileMetadataRequest {
+    string bucket     = 1;
+    string object_key = 2;
+}
+
+// =============================================================================
+// ListFiles
+// =============================================================================
+
+message ListFilesRequest {
+    string bucket       = 1;
+    string prefix       = 2;   // object-key prefix filter
+    string delimiter    = 3;   // "/" to list as a folder hierarchy
+    int32  page_size    = 4;
+    string page_token   = 5;   // continuation token from previous response
+    bool   recursive    = 6;   // if true, ignore delimiter and list all objects
+}
+
+message ListFilesResponse {
+    repeated FileMetadata files          = 1;
+    repeated string       common_prefixes = 2;  // "sub-folder" entries
+    string                next_page_token = 3;
+    bool                  truncated       = 4;
+}
+
+// =============================================================================
+// DeleteFile
+// =============================================================================
+
+message DeleteFileRequest {
+    string bucket     = 1;
+    string object_key = 2;
+
+    // If provided, delete only if the ETag matches (optimistic concurrency).
+    string expected_etag = 3;
+}
+
+// =============================================================================
+// GeneratePresignedUrl
+// =============================================================================
+
+message GeneratePresignedUrlRequest {
+    string                 bucket      = 1;
+    string                 object_key  = 2;
+    PresignedUrlOperation  operation   = 3;
+
+    // Validity duration in seconds (max 604800 = 7 days).
+    int32                  expires_in_seconds = 4;
+}
+
+message GeneratePresignedUrlResponse {
+    string                   url        = 1;
+    google.protobuf.Timestamp expires_at = 2;
+}
+
+// =============================================================================
+// CopyFile
+// =============================================================================
+
+message CopyFileRequest {
+    string source_bucket      = 1;
+    string source_object_key  = 2;
+    string dest_bucket        = 3;
+    string dest_object_key    = 4;
+
+    // If true, preserve the original access level; otherwise use dest_access_level.
+    bool            preserve_access_level = 5;
+    FileAccessLevel dest_access_level     = 6;
+
+    map<string, string> additional_tags = 7;
+}
+
+// =============================================================================
+// MoveFile
+// =============================================================================
+
+message MoveFileRequest {
+    string source_bucket     = 1;
+    string source_object_key = 2;
+    string dest_object_key   = 3;  // new key within the same bucket
+}

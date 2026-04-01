@@ -1,0 +1,90 @@
+# Compiled class file
+*.class
+
+# Log file
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files #
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+replay_pid*
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# Maven Wrapper
+.mvn/
+
+# Gradle
+.gradle/
+build/
+!gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# IDE
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite
+*.h2.db
+
+# Coverage
+coverage/
+.jacoco/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Nginx config
+docker/nginx/nginx.microservices.conf
+
+frontend/node_modules/
+frontend/yarn.lock
+frontend/e2e/
+frontend/playwright-report/
+frontend/test-results/
+frontend/__tests__/
+frontend/.next/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+frontend/.yarnrc.yml
+
+app-monolith/src/main/resources/application-local.yml

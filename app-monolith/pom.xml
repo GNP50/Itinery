@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ================================================================== -->
+    <!-- Parent                                                               -->
+    <!-- ================================================================== -->
+    <parent>
+        <groupId>com.travel</groupId>
+        <artifactId>travel-itinerary-platform</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!-- ================================================================== -->
+    <!-- Artifact                                                             -->
+    <!-- ================================================================== -->
+    <artifactId>app-monolith</artifactId>
+    <packaging>jar</packaging>
+
+    <name>App Monolith</name>
+    <description>
+        Deployable monolith application that wires together all domain modules
+        (itinerary-impl, event-messaging-starter, config-client-starter) into a
+        single Spring Boot fat-jar. Entry point: com.travel.monolith.MonolithApplication.
+    </description>
+
+    <!-- ================================================================== -->
+    <!-- Dependencies                                                         -->
+    <!-- ================================================================== -->
+    <dependencies>
+
+        <!-- Itinerary domain - core + adapters (REST + JPA) -->
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>itinerary-impl-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>itinerary-impl-rest</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>itinerary-impl-jpa</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>itinerary-impl-redis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>queue-impl-redis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>itinerary-impl-storage</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Geo domain - implementation (includes adapters and Kafka listeners) -->
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>geo-impl</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- AI domain - implementation (includes service and adapters) -->
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>ai-impl</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- User domain - core + REST + JPA -->
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>user-impl-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>itinerary-impl-kafka</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>ai-impl-kafka</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>geo-impl-kafka</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>user-impl-rest</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>user-impl-jpa</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>saga-grpc-client</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- NO gRPC clients/servers - direct in-process calls -->
+
+        <!-- Shared starters -->
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>event-messaging-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.travel</groupId>
+            <artifactId>config-client-starter</artifactId>
+        </dependency>
+
+        <!-- Flyway migrations -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Actuator -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- SpringDoc OpenAPI / Swagger UI -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        </dependency>
+
+        <!-- ── Test: Testcontainers ──────────────────────────────────── -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>kafka</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ── Test: Awaitility ──────────────────────────────────────── -->
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ── Test: Spring Kafka Test ───────────────────────────────── -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <!-- ================================================================== -->
+    <!-- Build                                                                -->
+    <!-- ================================================================== -->
+    <build>
+        <plugins>
+
+            <!-- Compiler -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+
+            <!-- Failsafe: run *IT.java integration tests during mvn verify -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+            </plugin>
+
+            <!-- Spring Boot fat-jar + build-info -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.travel.monolith.MonolithApplication</mainClass>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                    <layers>
+                        <enabled>true</enabled>
+                    </layers>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                            <goal>build-info</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+        </plugins>
+    </build>
+
+</project>

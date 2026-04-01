@@ -1,0 +1,201 @@
+syntax = "proto3";
+
+// =============================================================================
+// config-service.proto
+// gRPC service definition for distributed configuration management.
+// Managed by the config-manager module.
+// =============================================================================
+
+package com.travel.config.v1;
+
+option java_package         = "com.travel.config.grpc.v1";
+option java_outer_classname = "ConfigServiceProto";
+option java_multiple_files  = true;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// =============================================================================
+// Service
+// =============================================================================
+
+// ConfigService provides CRUD operations over distributed configuration
+// entries stored in config_db.  All keys are namespaced by application name
+// and environment so that multiple services can share a single config store.
+service ConfigService {
+
+    // Retrieve a single configuration entry.
+    rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+
+    // Retrieve all entries for a given application / environment namespace.
+    rpc ListConfigs(ListConfigsRequest) returns (ListConfigsResponse);
+
+    // Create or overwrite a configuration entry.
+    rpc SetConfig(SetConfigRequest) returns (SetConfigResponse);
+
+    // Delete a configuration entry; returns NOT_FOUND if it does not exist.
+    rpc DeleteConfig(DeleteConfigRequest) returns (google.protobuf.Empty);
+
+    // Watch a key (or namespace) for changes; streams ConfigChangedEvent
+    // messages whenever a value is updated.
+    rpc WatchConfig(WatchConfigRequest) returns (stream ConfigChangedEvent);
+}
+
+// =============================================================================
+// Shared enumerations
+// =============================================================================
+
+enum ConfigValueType {
+    CONFIG_VALUE_TYPE_UNSPECIFIED = 0;
+    CONFIG_VALUE_TYPE_STRING      = 1;
+    CONFIG_VALUE_TYPE_INTEGER     = 2;
+    CONFIG_VALUE_TYPE_BOOLEAN     = 3;
+    CONFIG_VALUE_TYPE_JSON        = 4;
+    CONFIG_VALUE_TYPE_YAML        = 5;
+    CONFIG_VALUE_TYPE_SECRET      = 6;   // value is encrypted at rest
+}
+
+enum ChangeType {
+    CHANGE_TYPE_UNSPECIFIED = 0;
+    CHANGE_TYPE_CREATED     = 1;
+    CHANGE_TYPE_UPDATED     = 2;
+    CHANGE_TYPE_DELETED     = 3;
+}
+
+// =============================================================================
+// Core message types
+// =============================================================================
+
+// A single configuration entry.
+message ConfigEntry {
+    // Unique identifier (UUID).
+    string id = 1;
+
+    // Target application (e.g. "itinerary-impl", "geo-api").
+    string application = 2;
+
+    // Deployment environment (e.g. "development", "staging", "production").
+    string environment = 3;
+
+    // Configuration key (hierarchical dot-notation, e.g. "db.pool.size").
+    string key = 4;
+
+    // Configuration value as a UTF-8 string (may be a JSON/YAML blob).
+    string value = 5;
+
+    // Value format/type hint.
+    ConfigValueType value_type = 6;
+
+    // Optional human-readable description.
+    string description = 7;
+
+    // Version counter incremented on every update (optimistic locking).
+    int64 version = 8;
+
+    // Timestamp of the last write.
+    google.protobuf.Timestamp updated_at = 9;
+
+    // Identity of the last writer (service account or user).
+    string updated_by = 10;
+
+    // Whether this entry is encrypted (applies to SECRET type).
+    bool encrypted = 11;
+
+    // Arbitrary labels for filtering / grouping.
+    map<string, string> labels = 12;
+}
+
+// =============================================================================
+// Request / Response messages
+// =============================================================================
+
+// ── GetConfig ────────────────────────────────────────────────────────────────
+
+message GetConfigRequest {
+    // All three fields form the unique compound key.
+    string application = 1;
+    string environment = 2;
+    string key         = 3;
+}
+
+message GetConfigResponse {
+    ConfigEntry entry = 1;
+}
+
+// ── ListConfigs ──────────────────────────────────────────────────────────────
+
+message ListConfigsRequest {
+    string application = 1;
+    string environment = 2;
+
+    // Optional key prefix filter (e.g. "db." returns all db.* keys).
+    string key_prefix  = 3;
+
+    // Label selector (all provided labels must match).
+    map<string, string> label_selector = 4;
+
+    // Pagination
+    int32  page_size  = 5;
+    string page_token = 6;
+}
+
+message ListConfigsResponse {
+    repeated ConfigEntry entries        = 1;
+    string               next_page_token = 2;
+    int64                total_count     = 3;
+}
+
+// ── SetConfig ────────────────────────────────────────────────────────────────
+
+message SetConfigRequest {
+    string          application = 1;
+    string          environment = 2;
+    string          key         = 3;
+    string          value       = 4;
+    ConfigValueType value_type  = 5;
+    string          description = 6;
+
+    // If non-zero, used for optimistic concurrency control.
+    // Set to 0 to bypass the check (force overwrite).
+    int64           expected_version = 7;
+
+    // Who is making this change (audit trail).
+    string          updated_by = 8;
+
+    map<string, string> labels = 9;
+}
+
+message SetConfigResponse {
+    ConfigEntry entry = 1;
+}
+
+// ── DeleteConfig ─────────────────────────────────────────────────────────────
+
+message DeleteConfigRequest {
+    string application       = 1;
+    string environment       = 2;
+    string key               = 3;
+    int64  expected_version  = 4;  // 0 = force delete
+    string deleted_by        = 5;
+}
+
+// ── WatchConfig ──────────────────────────────────────────────────────────────
+
+message WatchConfigRequest {
+    string application = 1;
+    string environment = 2;
+
+    // Optional: watch a specific key only; if empty, watch entire namespace.
+    string key_prefix  = 3;
+}
+
+// Streamed event pushed to watchers when a config entry changes.
+message ConfigChangedEvent {
+    ChangeType  change_type = 1;
+    ConfigEntry entry       = 2;
+
+    // The old value before the change (empty for CREATED events).
+    string      previous_value = 3;
+
+    google.protobuf.Timestamp occurred_at = 4;
+}

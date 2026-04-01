@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+// =============================================================================
+// user-service.proto
+// gRPC service definition for the User bounded context.
+// Managed by the user-impl / app-microservice-user modules.
+// =============================================================================
+
+package com.travel.user.v1;
+
+option java_package         = "com.travel.user.grpc.v1";
+option java_outer_classname = "UserServiceProto";
+option java_multiple_files  = true;
+
+import "google/protobuf/timestamp.proto";
+
+// =============================================================================
+// Service
+// =============================================================================
+
+service UserService {
+
+    // Retrieve a user by their unique subject (email for registered, anon_<UUID> for anonymous).
+    rpc GetUserBySub(GetUserRequest) returns (UserResponse);
+
+    // Retrieve a user by their internal UUID.
+    rpc GetUserById(GetUserRequest) returns (UserResponse);
+
+    // List all users with pagination.
+    rpc ListAllUsers(ListUsersRequest) returns (ListUsersResponse);
+
+    // Check if the given user has admin (REGISTERED) status.
+    rpc CheckAdminStatus(CheckAdminRequest) returns (AdminStatusResponse);
+}
+
+// =============================================================================
+// Enumerations
+// =============================================================================
+
+enum UserType {
+    USER_TYPE_UNSPECIFIED = 0;
+    USER_TYPE_REGISTERED  = 1;
+    USER_TYPE_ANONYMOUS   = 2;
+    USER_TYPE_ADMIN       = 3;
+}
+
+// =============================================================================
+// Request / Response messages
+// =============================================================================
+
+// ── GetUserBySub / GetUserById ────────────────────────────────────────────────
+
+// Generic lookup request – the field `id` carries either the sub or the UUID
+// depending on which RPC is called.
+message GetUserRequest {
+    string id = 1;
+}
+
+// Full user representation returned by lookup RPCs.
+message UserResponse {
+    string                    id         = 1;
+    string                    sub        = 2;
+    string                    email      = 3;
+    string                    name       = 4;
+    UserType                  user_type  = 5;
+    google.protobuf.Timestamp created_at = 6;
+}
+
+// ── ListAllUsers ─────────────────────────────────────────────────────────────
+
+message ListUsersRequest {
+    int32 offset = 1;   // zero-based page offset in rows
+    int32 limit  = 2;   // max rows to return (default 20)
+}
+
+message ListUsersResponse {
+    repeated UserResponse users = 1;
+    int64                 total = 2;   // total matching rows (for pagination)
+}
+
+// ── CheckAdminStatus ─────────────────────────────────────────────────────────
+
+message CheckAdminRequest {
+    // UUID of the user to check.
+    string user_id = 1;
+}
+
+message AdminStatusResponse {
+    bool is_admin = 1;
+}

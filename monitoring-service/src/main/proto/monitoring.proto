@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package com.travel.monitoring.grpc;
+
+option java_package = "com.travel.monitoring.grpc";
+option java_multiple_files = true;
+
+service MonitoringService {
+  // Records a metric
+  rpc RecordMetric(RecordMetricRequest) returns (RecordMetricResponse);
+
+  // Gets health status
+  rpc GetHealth(HealthRequest) returns (HealthResponse);
+
+  // Gets metrics snapshot
+  rpc GetMetrics(MetricsRequest) returns (MetricsResponse);
+
+  // Starts a trace
+  rpc StartTrace(StartTraceRequest) returns (StartTraceResponse);
+
+  // Ends a trace
+  rpc EndTrace(EndTraceRequest) returns (EndTraceResponse);
+}
+
+// RecordMetricRequest - Request to record a metric
+message RecordMetricRequest {
+  string name = 1;
+  double value = 2;
+  map<string, string> tags = 3;
+  string serviceName = 4;
+}
+
+// RecordMetricResponse - Response from recording a metric
+message RecordMetricResponse {
+  bool success = 1;
+  string message = 2;
+  int64 timestamp = 3;
+}
+
+// HealthRequest - Request for health status
+message HealthRequest {
+  string service = 1;
+}
+
+// HealthResponse - Response with health status
+message HealthResponse {
+  string status = 1;
+  string service = 2;
+  map<string, string> details = 3;
+  int64 timestamp = 4;
+}
+
+// MetricsRequest - Request for metrics snapshot
+message MetricsRequest {
+  string format = 1;  // prometheus, json, etc.
+}
+
+// MetricsResponse - Response with metrics
+message MetricsResponse {
+  string format = 1;
+  string data = 2;
+  int64 timestamp = 3;
+  int32 metricCount = 4;
+}
+
+// StartTraceRequest - Request to start a trace
+message StartTraceRequest {
+  string traceId = 1;
+  string operationName = 2;
+  map<string, string> attributes = 3;
+}
+
+// StartTraceResponse - Response from starting a trace
+message StartTraceResponse {
+  string traceId = 1;
+  string spanId = 2;
+  bool success = 3;
+}
+
+// EndTraceRequest - Request to end a trace
+message EndTraceRequest {
+  string traceId = 1;
+  map<string, string> attributes = 2;
+}
+
+// EndTraceResponse - Response from ending a trace
+message EndTraceResponse {
+  string traceId = 1;
+  bool success = 2;
+  int64 durationMs = 3;
+}
